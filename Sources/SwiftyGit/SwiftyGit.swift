@@ -1,9 +1,42 @@
 import Foundation
 
-enum Object: Hashable {
+public struct TreeItem: Hashable {
+    var mode: String
+    var name: String
+    var hash: String
+}
+
+public enum Object: Hashable {
     case blob(Data)
     case commit
-    case tree
+    case tree([TreeItem])
+}
+
+extension Data {
+    mutating func parseTreeItems() throws -> [TreeItem] {
+        var result: [TreeItem] = []
+
+        while !isEmpty {
+            try result.append(parseTreeItem())
+        }
+
+        return result
+    }
+
+    mutating func parseTreeItem() throws -> TreeItem {
+        let mode = String(decoding: remove(upTo: 0x20), as: UTF8.self)
+        let name = String(decoding: remove(upTo: 0), as: UTF8.self)
+
+        let hashData = prefix(20)
+        removeFirst(20)
+
+        let hash = hashData.map { byte in
+            let result = String(byte, radix: 16)
+            return result.count == 1 ? "0\(result)" : result
+        }.joined()
+
+        return .init(mode: mode, name: name, hash: hash)
+    }
 }
 
 struct Repository {
@@ -33,10 +66,9 @@ struct Repository {
 
         switch typeStr {
         case "blob": return .blob(stream)
+        case "tree": return .tree(try stream.parseTreeItems())
         default: fatalError()
         }
-
-        fatalError()
     }
 }
 
